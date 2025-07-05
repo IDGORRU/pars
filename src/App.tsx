@@ -25,19 +25,25 @@ function App() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Проверяем текущего пользователя
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
+useEffect(() => {
+  const fetchUser = async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      console.warn("Помилка авторизації:", error.message);
+    } else {
+      setUser(data.user);
+    }
+  };
 
-    // Слушаем изменения аутентификации
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
+  fetchUser();
 
-    return () => subscription.unsubscribe();
-  }, []);
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setUser(session?.user ?? null);
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
+
 
   const addLog = (message: string) => {
     setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
