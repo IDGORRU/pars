@@ -11,6 +11,12 @@ const HTMLParser = () => {
   const [showResults, setShowResults] = useState(false);
   const [proxyEnabled, setProxyEnabled] = useState(false);
   const [proxyUrl, setProxyUrl] = useState('');
+  
+  // Новые состояния для таймера и прогресса
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [timerInterval, setTimerInterval] = useState(null);
+  const [currentCount, setCurrentCount] = useState(0);
+  const [estimatedTotal, setEstimatedTotal] = useState(null);
 
   const addLog = (message) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -48,6 +54,9 @@ const HTMLParser = () => {
       // Создаем виртуальный DOM для парсинга
       const parser = new DOMParser();
       const doc = parser.parseFromString(htmlContent, 'text/html');
+      
+      // Устанавливаем приблизительное количество элементов
+      setEstimatedTotal(doc.querySelectorAll('a, p, h1, h2, h3, img').length);
       
       let results = [];
       
@@ -91,6 +100,7 @@ const HTMLParser = () => {
           source: 'text content',
           type: 'text'
         });
+        setCurrentCount((prev) => prev + 1);
       }
     });
     
@@ -106,6 +116,7 @@ const HTMLParser = () => {
           type: 'link',
           text: link.textContent.trim()
         });
+        setCurrentCount((prev) => prev + 1);
       }
     });
     
@@ -144,6 +155,7 @@ const HTMLParser = () => {
           type: isExternal ? 'external' : 'internal',
           title: link.getAttribute('title') || ''
         });
+        setCurrentCount((prev) => prev + 1);
       }
     });
     
@@ -164,6 +176,7 @@ const HTMLParser = () => {
           content: heading.textContent.trim(),
           position: index + 1
         });
+        setCurrentCount((prev) => prev + 1);
       }
     });
     
@@ -177,6 +190,7 @@ const HTMLParser = () => {
           length: p.textContent.trim().length,
           position: index + 1
         });
+        setCurrentCount((prev) => prev + 1);
       }
     });
     
@@ -190,6 +204,7 @@ const HTMLParser = () => {
         title: img.getAttribute('title') || '',
         position: index + 1
       });
+      setCurrentCount((prev) => prev + 1);
     });
     
     return data;
@@ -223,6 +238,7 @@ const HTMLParser = () => {
             attributes: element.attributes.length,
             position: index + 1
           });
+          setCurrentCount((prev) => prev + 1);
         }
       });
     });
@@ -244,6 +260,16 @@ const HTMLParser = () => {
       return;
     }
 
+    // Инициализация таймера и счетчиков
+    setElapsedTime(0);
+    setCurrentCount(0);
+    setEstimatedTotal(null);
+
+    const interval = setInterval(() => {
+      setElapsedTime((prev) => prev + 1);
+    }, 1000);
+    setTimerInterval(interval);
+
     setIsRunning(true);
     setShowResults(false);
     setResults([]);
@@ -261,11 +287,17 @@ const HTMLParser = () => {
       addLog(`❌ Ошибка парсинга: ${error.message}`);
     } finally {
       setIsRunning(false);
+      if (timerInterval) clearInterval(timerInterval);
+      setTimerInterval(null);
     }
   };
 
   const handleStop = () => {
     setIsRunning(false);
+    if (timerInterval) clearInterval(timerInterval);
+    setTimerInterval(null);
+    setCurrentCount(0);
+    setEstimatedTotal(null);
     addLog('🛑 Процесс остановлен пользователем');
   };
 
@@ -273,6 +305,10 @@ const HTMLParser = () => {
     setLogs([]);
     setResults([]);
     setShowResults(false);
+    if (timerInterval) clearInterval(timerInterval);
+    setTimerInterval(null);
+    setCurrentCount(0);
+    setEstimatedTotal(null);
   };
 
   const downloadResults = () => {
@@ -568,6 +604,28 @@ const HTMLParser = () => {
                   <span className="text-gray-600">Результаты:</span>
                   <span className="font-medium text-green-600">{results.length} найдено</span>
                 </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Время выполнения:</span>
+                  <span className="font-medium text-gray-800">
+                    {Math.floor(elapsedTime / 60)}:{String(elapsedTime % 60).padStart(2, '0')}
+                  </span>
+                </div>
+                {isRunning && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Прогресс:</span>
+                    <span className="font-medium text-blue-700">
+                      {currentCount} {estimatedTotal ? `/ ${estimatedTotal}` : ''} найдено
+                    </span>
+                  </div>
+                )}
+                {isRunning && estimatedTotal && (
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mt-2">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${Math.min((currentCount / estimatedTotal) * 100, 100)}%` }}
+                    ></div>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Состояние:</span>
                   <span className={`font-medium ${isRunning ? 'text-yellow-600' : 'text-gray-600'}`}>
